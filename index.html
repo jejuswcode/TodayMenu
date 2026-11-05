@@ -17,6 +17,7 @@
     @media(max-width:480px){.brand-note{display:none}.hero{align-items:flex-start;flex-direction:column}h1{font-size:37px}.month-box{width:100%;display:flex;align-items:center;gap:16px;padding:13px 16px;border-radius:10px}.month-box label{margin:0;white-space:nowrap}.month-box select{width:90px;padding:0 0 4px;font-size:21px}.month-box small{margin:0 0 0 auto}.section-top{align-items:flex-start;gap:12px}.ingredients .section-top{flex-direction:column;gap:8px}.chip{padding:10px 15px}.grid{grid-template-columns:1fr}.results-heading{font-size:21px}.section-top .result-count{padding-top:6px}.photo{aspect-ratio:16/10}.recipes-section{padding-top:28px}.card h3{font-size:20px}}
     .card{position:relative}.card-open{position:absolute;inset:0;border:0;border-radius:15px;background:transparent;z-index:1}.card-open:focus-visible{outline:3px solid var(--accent);outline-offset:-4px}.card:has(.card-open:hover){border-color:#a1b081}.card-footer{padding-right:12px}
     body:has(dialog[open]){overflow:hidden}.recipe-dialog{border:0;border-radius:20px;padding:0;width:min(760px,calc(100% - 32px));max-height:90dvh;background:var(--paper);color:var(--ink);box-shadow:0 24px 90px #16291f40;overflow:auto}.recipe-dialog::backdrop{background:rgba(22,35,27,.65)}.dialog-bar{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:13px 22px;background:var(--paper);border-bottom:1px solid var(--line);font-size:12px;color:var(--green)}.dialog-x{border:1px solid var(--line);border-radius:50%;width:36px;height:36px;background:white;color:var(--ink);font-size:25px;line-height:1}.detail-photo{aspect-ratio:auto;background:#ebeee3;min-height:160px;display:grid;place-items:center}.detail-photo img{display:block;width:100%;max-height:430px;object-fit:contain}.detail-photo .photo-fallback{padding:45px 20px}.detail-content{padding:28px 32px 32px}.detail-content h2{font-size:29px;line-height:1.4;margin:0 0 20px}.detail-meta{display:flex;flex-wrap:wrap;gap:12px 30px;padding-bottom:22px;border-bottom:1px solid var(--line);margin:0}.detail-meta div{display:flex;gap:10px;font-size:13px}.detail-meta dt{color:var(--muted)}.detail-meta dd{margin:0;font-weight:700}.detail-section{margin-top:27px}.detail-section h3{font-size:17px;margin:0 0 12px}.detail-text{white-space:pre-line;font-size:14px;line-height:1.9;margin:0;overflow-wrap:anywhere}.detail-steps{padding-left:25px;margin:0}.detail-steps li{padding-left:7px;margin-bottom:14px;white-space:pre-line;font-size:14px;line-height:1.9;overflow-wrap:anywhere}.detail-steps li::marker{color:var(--accent);font-weight:700}.detail-tip{padding:20px;background:#e9eddf;border-radius:12px}.detail-tip[hidden]{display:none}.dialog-actions{margin-top:28px;display:flex;justify-content:flex-end}.dialog-close{border:0;border-radius:9px;background:var(--green);color:#fff;padding:12px 30px}@media(max-width:480px){.detail-content{padding:23px 20px}.detail-content h2{font-size:24px}.recipe-dialog{max-height:94dvh}.dialog-bar{padding:10px 16px}}
+    .bonus-section{margin-top:38px;padding-top:28px;border-top:1px solid var(--line)}.bonus-section[hidden]{display:none}.bonus-section h3{font-size:21px;letter-spacing:-.7px;margin:0 0 9px}.bonus-section p{margin:0;color:var(--muted);font-size:13px;line-height:1.8}.bonus-section .season-tag{color:var(--accent)}
   </style>
 </head>
 <body>
@@ -37,6 +38,11 @@
       <section class="recipes-section" aria-labelledby="results-title" aria-busy="true" id="results-section">
         <div class="section-top"><h2 class="results-heading" id="results-title">오늘의 추천 메뉴</h2><span class="result-count" id="result-count"></span></div>
         <div id="recipes" class="grid"></div>
+        <section id="bonus-section" class="bonus-section" aria-labelledby="bonus-title" hidden>
+          <h3 id="bonus-title">오늘의 랜덤 추천</h3>
+          <p id="bonus-description"></p>
+          <div id="bonus-recipes" class="grid"></div>
+        </section>
         <p id="announcement" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)"></p>
       </section>
     </main>
@@ -67,6 +73,9 @@
     let selectedMonth = currentMonth;
     let selectedIngredient = null;
     let data = null;
+    const bonusByMonth = new Map();
+    const bonusSection = document.querySelector('#bonus-section');
+    const bonusRecipesEl = document.querySelector('#bonus-recipes');
     const recipeDialog = document.querySelector('#recipe-dialog');
     const detailPhoto = document.querySelector('#detail-photo');
     let dialogOpener = null;
@@ -127,6 +136,30 @@
       return data.recipes.filter(recipe => recipe.seasonal.includes(ingredient) && recipe.months.includes(selectedMonth));
     }
 
+    function renderBonusRecipes() {
+      const names = new Set(data.seasonal.filter(item => item.month === selectedMonth).map(item => item.name));
+      const monthlyRecipes = data.recipes.filter(recipe => recipe.months.includes(selectedMonth) && recipe.seasonal.some(name => names.has(name)));
+      bonusRecipesEl.replaceChildren();
+      bonusSection.hidden = monthlyRecipes.length > 15;
+      if (bonusSection.hidden) return 0;
+      if (!bonusByMonth.has(selectedMonth)) {
+        const key = recipe => recipe.id ?? recipe.name;
+        const excluded = new Set(monthlyRecipes.map(key));
+        const pool = [...new Map(data.recipes.filter(recipe => !excluded.has(key(recipe))).map(recipe => [key(recipe), recipe])).values()];
+        // Fisher–Yates로 섞어 중복 없이 최대 5개를 선택합니다.
+        for (let i = pool.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+        bonusByMonth.set(selectedMonth, pool.slice(0, 5));
+      }
+      const bonuses = bonusByMonth.get(selectedMonth);
+      bonusSection.hidden = bonuses.length === 0;
+      document.querySelector('#bonus-description').textContent = `${selectedMonth}월의 제철 추천은 총 ${monthlyRecipes.length}개예요. 다른 계절의 메뉴도 포함해 ${bonuses.length}개를 더 골라봤어요.`;
+      for (const recipe of bonuses) bonusRecipesEl.append(createRecipeCard(recipe, true));
+      return bonuses.length;
+    }
+
     function showMessage(title, description, retry = false) {
       const box = document.createElement('div');
       box.className = 'empty';
@@ -143,6 +176,7 @@
         box.append(button);
       }
       recipesEl.replaceChildren(box);
+      bonusSection.hidden = true;
       announcement.textContent = `${title} ${description}`;
     }
 
@@ -160,10 +194,16 @@
       resultCount.textContent = `추천 메뉴 ${matches.length}개`;
       if (!matches.length) {
         showMessage('아직 추천할 메뉴가 없어요', selectedIngredient ? `${selectedMonth}월의 ${selectedIngredient} 레시피가 없습니다. 다른 재료나 월을 선택해 보세요.` : '이달에 등록된 제철 재료가 없습니다. 다른 월을 선택해 보세요.');
-        return;
+      } else {
+        const fragment = document.createDocumentFragment();
+        for (const recipe of matches) fragment.append(createRecipeCard(recipe));
+        recipesEl.append(fragment);
       }
-      const fragment = document.createDocumentFragment();
-      for (const recipe of matches) {
+      const bonusCount = renderBonusRecipes();
+      announcement.textContent = `${selectedMonth}월 ${selectedIngredient || ''} 추천 메뉴 ${matches.length}개${bonusCount ? `, 랜덤 추천 ${bonusCount}개 추가` : ''}`;
+    }
+
+    function createRecipeCard(recipe, isBonus = false) {
         const card = document.createElement('article');
         card.className = 'card';
         const photo = document.createElement('div');
@@ -184,7 +224,7 @@
         else photo.classList.add('is-missing');
         const tag = document.createElement('span');
         tag.className = 'season-tag';
-        tag.textContent = `${selectedMonth}월의 제철`;
+        tag.textContent = isBonus ? '랜덤 추천' : `${selectedMonth}월의 제철`;
         photo.append(image, fallback, tag);
         const body = document.createElement('div');
         body.className = 'card-body';
@@ -201,7 +241,7 @@
         name.textContent = recipe.name;
         const footer = document.createElement('div');
         footer.className = 'card-footer';
-        footer.textContent = `#${selectedIngredient}  ·  레시피 자세히 보기 ↗`;
+        footer.textContent = `${isBonus ? '새로운 메뉴 발견' : `#${selectedIngredient}`}  ·  레시피 자세히 보기 ↗`;
         body.append(category, name, footer);
         const openButton = document.createElement('button');
         openButton.type = 'button';
@@ -210,10 +250,7 @@
         openButton.setAttribute('aria-haspopup', 'dialog');
         openButton.addEventListener('click', () => openRecipe(recipe, openButton));
         card.append(photo, body, openButton);
-        fragment.append(card);
-      }
-      recipesEl.append(fragment);
-      announcement.textContent = `${selectedMonth}월 ${selectedIngredient} 추천 메뉴 ${matches.length}개`;
+        return card;
     }
 
     function renderMonth() {
@@ -253,6 +290,7 @@
         const menu = await response.json();
         if (!Array.isArray(menu.seasonal) || !Array.isArray(menu.recipes) || !menu.seasonal.every(item => Number.isInteger(item.month) && typeof item.name === 'string') || !menu.recipes.every(recipe => Array.isArray(recipe.seasonal) && Array.isArray(recipe.months))) throw new Error('잘못된 메뉴 데이터');
         data = menu;
+        bonusByMonth.clear();
         renderMonth();
       } catch (error) {
         data = null;
