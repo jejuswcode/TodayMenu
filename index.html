@@ -15,6 +15,8 @@
     @media(min-width:1000px){.hero:after{content:"SEASONAL TABLE";position:absolute;right:216px;bottom:49px;writing-mode:vertical-rl;font-size:9px;letter-spacing:3px;color:#9aa38f}}
     @media(max-width:760px){.wrap{width:calc(100% - 36px)}header{padding:20px 0}.brand-note{font-size:10px;letter-spacing:1px}.hero{padding:36px 0 30px;gap:18px}.month-box{min-width:125px;padding:16px;transform:none}.month-box select{font-size:23px}.month-box small{font-size:10px}.intro{font-size:13px}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 14px}.section-hint{font-size:11px}.card-body{padding:16px}.card h3{font-size:17px}footer{flex-wrap:wrap}}
     @media(max-width:480px){.brand-note{display:none}.hero{align-items:flex-start;flex-direction:column}h1{font-size:37px}.month-box{width:100%;display:flex;align-items:center;gap:16px;padding:13px 16px;border-radius:10px}.month-box label{margin:0;white-space:nowrap}.month-box select{width:90px;padding:0 0 4px;font-size:21px}.month-box small{margin:0 0 0 auto}.section-top{align-items:flex-start;gap:12px}.ingredients .section-top{flex-direction:column;gap:8px}.chip{padding:10px 15px}.grid{grid-template-columns:1fr}.results-heading{font-size:21px}.section-top .result-count{padding-top:6px}.photo{aspect-ratio:16/10}.recipes-section{padding-top:28px}.card h3{font-size:20px}}
+    .card{position:relative}.card-open{position:absolute;inset:0;border:0;border-radius:15px;background:transparent;z-index:1}.card-open:focus-visible{outline:3px solid var(--accent);outline-offset:-4px}.card:has(.card-open:hover){border-color:#a1b081}.card-footer{padding-right:12px}
+    body:has(dialog[open]){overflow:hidden}.recipe-dialog{border:0;border-radius:20px;padding:0;width:min(760px,calc(100% - 32px));max-height:90dvh;background:var(--paper);color:var(--ink);box-shadow:0 24px 90px #16291f40;overflow:auto}.recipe-dialog::backdrop{background:rgba(22,35,27,.65)}.dialog-bar{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:13px 22px;background:var(--paper);border-bottom:1px solid var(--line);font-size:12px;color:var(--green)}.dialog-x{border:1px solid var(--line);border-radius:50%;width:36px;height:36px;background:white;color:var(--ink);font-size:25px;line-height:1}.detail-photo{aspect-ratio:auto;background:#ebeee3;min-height:160px;display:grid;place-items:center}.detail-photo img{display:block;width:100%;max-height:430px;object-fit:contain}.detail-photo .photo-fallback{padding:45px 20px}.detail-content{padding:28px 32px 32px}.detail-content h2{font-size:29px;line-height:1.4;margin:0 0 20px}.detail-meta{display:flex;flex-wrap:wrap;gap:12px 30px;padding-bottom:22px;border-bottom:1px solid var(--line);margin:0}.detail-meta div{display:flex;gap:10px;font-size:13px}.detail-meta dt{color:var(--muted)}.detail-meta dd{margin:0;font-weight:700}.detail-section{margin-top:27px}.detail-section h3{font-size:17px;margin:0 0 12px}.detail-text{white-space:pre-line;font-size:14px;line-height:1.9;margin:0;overflow-wrap:anywhere}.detail-steps{padding-left:25px;margin:0}.detail-steps li{padding-left:7px;margin-bottom:14px;white-space:pre-line;font-size:14px;line-height:1.9;overflow-wrap:anywhere}.detail-steps li::marker{color:var(--accent);font-weight:700}.detail-tip{padding:20px;background:#e9eddf;border-radius:12px}.detail-tip[hidden]{display:none}.dialog-actions{margin-top:28px;display:flex;justify-content:flex-end}.dialog-close{border:0;border-radius:9px;background:var(--green);color:#fff;padding:12px 30px}@media(max-width:480px){.detail-content{padding:23px 20px}.detail-content h2{font-size:24px}.recipe-dialog{max-height:94dvh}.dialog-bar{padding:10px 16px}}
   </style>
 </head>
 <body>
@@ -40,6 +42,18 @@
     </main>
     <footer><span class="footer-brand">오늘 뭐먹지? <span style="font-weight:400">— 계절을 담은 한 끼</span></span><span>레시피 · 사진 출처: 식품의약품안전처 식품안전나라</span></footer>
   </div>
+  <dialog id="recipe-dialog" class="recipe-dialog" aria-labelledby="detail-title">
+    <div class="dialog-bar"><span>계절을 담은 레시피</span><button type="button" class="dialog-x" aria-label="레시피 팝업 닫기" autofocus>×</button></div>
+    <div id="detail-photo" class="detail-photo photo"></div>
+    <div class="detail-content">
+      <h2 id="detail-title"></h2>
+      <dl class="detail-meta"><div><dt>요리종류</dt><dd id="detail-category"></dd></div><div><dt>조리방법</dt><dd id="detail-method"></dd></div></dl>
+      <section class="detail-section" aria-labelledby="detail-ingredients-title"><h3 id="detail-ingredients-title">재료</h3><p id="detail-ingredients" class="detail-text"></p></section>
+      <section class="detail-section" aria-labelledby="detail-steps-title"><h3 id="detail-steps-title">조리순서</h3><ol id="detail-steps" class="detail-steps"></ol></section>
+      <section id="detail-tip-section" class="detail-section detail-tip" aria-labelledby="detail-tip-title" hidden><h3 id="detail-tip-title">Tip · 더 맛있게 즐기는 법</h3><p id="detail-tip" class="detail-text"></p></section>
+      <div class="dialog-actions"><button type="button" class="dialog-close">닫기</button></div>
+    </div>
+  </dialog>
   <script>
     'use strict';
     const monthSelect = document.querySelector('#month');
@@ -53,6 +67,53 @@
     let selectedMonth = currentMonth;
     let selectedIngredient = null;
     let data = null;
+    const recipeDialog = document.querySelector('#recipe-dialog');
+    const detailPhoto = document.querySelector('#detail-photo');
+    let dialogOpener = null;
+
+    // 데이터의 줄바꿈 태그는 텍스트 줄바꿈으로 바꾸고 HTML로 실행하지 않습니다.
+    function recipeText(value) {
+      return String(value ?? '').replace(/<br\s*\/?\s*>/gi, '\n').trim();
+    }
+
+    function openRecipe(recipe, opener) {
+      dialogOpener = opener;
+      document.querySelector('#detail-title').textContent = recipe.name;
+      document.querySelector('#detail-category').textContent = recipe.category || '기타';
+      document.querySelector('#detail-method').textContent = recipe.method || '등록된 조리방법이 없어요.';
+      document.querySelector('#detail-ingredients').textContent = recipeText(recipe.ingredients_text) || (recipe.main_ingredients || []).map(recipeText).join(', ') || '등록된 재료가 없어요.';
+      const steps = document.querySelector('#detail-steps');
+      steps.replaceChildren();
+      const instructions = (Array.isArray(recipe.steps) ? recipe.steps : []).map(recipeText).filter(Boolean);
+      for (const instruction of instructions.length ? instructions : ['등록된 조리순서가 없어요.']) {
+        const item = document.createElement('li');
+        item.textContent = instruction;
+        steps.append(item);
+      }
+      const tip = recipeText(recipe.tip);
+      document.querySelector('#detail-tip').textContent = tip;
+      document.querySelector('#detail-tip-section').hidden = !tip;
+      detailPhoto.replaceChildren();
+      detailPhoto.classList.remove('is-missing');
+      const image = document.createElement('img');
+      image.alt = recipe.name;
+      image.referrerPolicy = 'no-referrer';
+      const fallback = document.createElement('p');
+      fallback.className = 'photo-fallback';
+      fallback.textContent = '사진을 불러올 수 없어요.';
+      image.addEventListener('error', () => detailPhoto.classList.add('is-missing'), {once:true});
+      if (recipe.image) image.src = recipe.image;
+      else detailPhoto.classList.add('is-missing');
+      detailPhoto.append(image, fallback);
+      recipeDialog.showModal();
+      recipeDialog.scrollTop = 0;
+    }
+    document.querySelector('.dialog-x').addEventListener('click', () => recipeDialog.close());
+    document.querySelector('.dialog-close').addEventListener('click', () => recipeDialog.close());
+    recipeDialog.addEventListener('close', () => {
+      if (dialogOpener?.isConnected) dialogOpener.focus({preventScroll:true});
+      dialogOpener = null;
+    });
 
     for (let month = 1; month <= 12; month++) {
       const option = document.createElement('option');
@@ -140,9 +201,15 @@
         name.textContent = recipe.name;
         const footer = document.createElement('div');
         footer.className = 'card-footer';
-        footer.textContent = `#${selectedIngredient}  ·  제철 재료로 즐기는 메뉴`;
+        footer.textContent = `#${selectedIngredient}  ·  레시피 자세히 보기 ↗`;
         body.append(category, name, footer);
-        card.append(photo, body);
+        const openButton = document.createElement('button');
+        openButton.type = 'button';
+        openButton.className = 'card-open';
+        openButton.setAttribute('aria-label', `${recipe.name} 레시피 자세히 보기`);
+        openButton.setAttribute('aria-haspopup', 'dialog');
+        openButton.addEventListener('click', () => openRecipe(recipe, openButton));
+        card.append(photo, body, openButton);
         fragment.append(card);
       }
       recipesEl.append(fragment);
